@@ -1,0 +1,39 @@
+#!/bin/bash
+# fu2famenu is adapted from passmenu,
+# as it uses pass for secret storage anyways
+
+FU2FA=$HOME/github/flammie/fu2fa/fu2fa.py
+typeit=0
+if [[ $1 == "--type" ]]; then
+	typeit=1
+	shift
+fi
+
+if [[ -n $WAYLAND_DISPLAY ]]; then
+	dmenu=dmenu-wl
+	xdotool="ydotool type --file -"
+elif [[ -n $DISPLAY ]]; then
+	dmenu=dmenu
+	xdotool="xdotool type --clearmodifiers --file -"
+else
+	echo "Error: No Wayland or X11 display detected" >&2
+	exit 1
+fi
+
+prefix=${PASSWORD_STORE_DIR-~/.password-store}/fu2fa
+otp_files=( "$prefix"/*.url.gpg )
+otp_files=( "${otp_files[@]#"$prefix"/}" )
+otp_files=( "${otp_files[@]%.url.gpg}" )
+
+otp=$(printf '%s\n' "${otp_files[@]}" | "$dmenu" "$@")
+
+[[ -n $otp ]] || exit
+
+otpurl=$(pass show "fu2fa/$otp.url" | { IFS= read -r url; printf %s "$url"; })
+if [[ $typeit -eq 0 ]]; then
+	$FU2FA -U "$otpurl" | xclip -i -selection c -r
+    echo "Copied OTP of $otp to clipboard selection."
+else
+	$FU2FA -U "$otpurl" | { IFS= read -r pass; printf %s "$pass"; } | $xdotool
+fi
+
